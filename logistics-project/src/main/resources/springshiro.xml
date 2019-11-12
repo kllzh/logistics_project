@@ -1,0 +1,170 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<beans xmlns="http://www.springframework.org/schema/beans"
+	xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+	xmlns:aop="http://www.springframework.org/schema/aop"
+	xmlns:context="http://www.springframework.org/schema/context"
+	xsi:schemaLocation="http://www.springframework.org/schema/beans http://www.springframework.org/schema/beans/spring-beans.xsd
+		http://www.springframework.org/schema/context http://www.springframework.org/schema/context/spring-context-4.3.xsd
+		http://www.springframework.org/schema/aop http://www.springframework.org/schema/aop/spring-aop-4.3.xsd">
+       <!-- 开启aop，生成shiro代理对象 -->
+       <aop:config proxy-target-class="true"/>
+       <!-- 开启shiro的授权注解 -->
+      <bean id="" class="org.apache.shiro.spring.security.interceptor.AuthorizationAttributeSourceAdvisor">
+             <!-- 获取安全管理器 -->
+             <property name="securityManager" ref="securityManager"/>
+      </bean>
+      
+      <!-- shiro给spring提供异常拦截 -->
+      <bean id="" class="org.springframework.web.servlet.handler.SimpleMappingExceptionResolver">
+                <property name="exceptionMappings">
+                           <props>
+                           <!-- 获取的异常跳转到相应的页面
+                                    UnauthorizedException：翻译过来叫未经授权的异常，
+                                    让无权限的反问跳转到无权限页面提示
+                            -->
+                              <prop key="org.apache.shiro.authz.UnauthorizedException">unauthorizedUrl</prop>
+                           </props>
+                </property>
+      </bean>
+      <!-- 自定义清除保存的上一次路径，在退出的时候清除session和connkie数据，默认跳转到 /(根目录) 
+           ，则authc拦截返回登陆页面，再次登陆的时候，则先寻找上次登陆的路径，若没有跳转到指定路径
+              若有则会跳转到上次反问的路径，而此时根目录则会变成在退出登陆时相对应再次登陆时的上一次路径
+              则就会出现404错误；自定义清除保存上一次的路径解决该错误的出现         
+       -->
+          
+          <!-- 配置自定义清除上一次保存的路径，将对象交给spring管理创建 -->            
+          <bean id="CustomLogout" class="cn.zj.logistics.filter.CustomLogout"/>
+
+               <!-- 配置shiro框架 -->
+          <bean id="shiroFilter" class="org.apache.shiro.spring.web.ShiroFilterFactoryBean">
+                     <!-- 获取CustomLogout,使用我们自定义清除上一次路径的配置-->
+			          <property name="filters">
+			          <map>
+			          <entry key="authc" value-ref="CustomLogout"/>
+			          </map>
+			          </property>                      
+                      <!-- 获取安全管理器 -->
+                   <property name="securityManager" ref="securityManager"/>
+                   <!-- 配置认证失败后跳转的页面 -->
+                   <property name="loginUrl" value="/admin/login.do"/>
+                   <!-- 配置认证成功后跳转的页面 -->
+                   <property name="successUrl" value="/index.do"></property>
+                   
+                   <!--  
+                                    设置shiro的滤器链，顺序从上到下执行，所以一般/**配置在后面最好(/**拦截多级请求) 
+      
+           anon:org.apache.shiro.web.filter.authc.AnonymousFilter
+                     不需要任何权限，给于请求路径通过；一盘给与静态请求访问静态页面html，jpg,js,css
+           
+           authc：org.apache.shiro.web.filter.authc.FormAuthenticationFilter          
+                      进行拦截除了anon放行请求外，请他请求全部拦截，拦截多级请求
+           
+                     请求中若参数带有username和password两个属性；则进行认证，将账号密码封装到 Shiro的Token令牌中
+                     并调用 自定义Realm里面 的 认证方法 ；此时：开发者需要在自定义realm的认证方法中完成认证逻辑  
+						认证成功：
+							跳转到 认证成功页面，首页  /index.do
+						认证失败：
+							跳转到认证失败页面 /user/login.do
+							并且会把认证失败的错误信息共享到 HttpServletRequest 请求对象中
+							HttpServletRequest 共享的名称 shiroLoginFailure
+                     认证失败进入/user/login.do/返回login.jsp登陆页面重新登陆；
+                     若没有属性，则认证是否之前认证成功登陆过；若没用则返回登陆页面
+                     
+                     认证失败，会把认证失败的数据（异常）存放在shiroLoginuer属性中，将错误信息进行提示;
+                     
+                     
+           logout:org.apache.shiro.web.filter.authc.LogoutFilter
+                     退出登陆，清除session和Conkei值,然后以根路径再继续反问
+                     此时authc再次拦截，返回登陆页面
+                     
+                     
+            perms:org.apache.shiro.web.filter.authz.PermissionsAuthorizationFilter             
+                       授权认证：登陆认证成功之后，反问/user/list.do的时候自动调用自定义的Realm中的授权方法，
+                       进行判断是否有该权限，在自定义Realm中，我们是自定义了权限数据，一般我们是需要在数据库
+                       查权限表达式数据出来的，然后通过所需反问的路径，设置应用的权限才能进属于自己的权限页面
+                       否则跳到我们以上设置好的没权限页面进行提示；
+                       具体设置 ：/user/list.do=perms[user:list]；不过一般我们开发的时候使用的是注解
+                       若有成千个判断权限，那就的写上成千行；这样不提倡，我们使用注解判断是否权限      
+                 
+                 user org.apache.shiro.web.filter.authc.UserFilter
+                                 设置完“记住我”之后默认反问页面，反问的时候回去查看是否以设置记住我了
+      --> 
+                               
+                   <property name="filterChainDefinitions">
+                   
+                         <value>
+                                
+                                /lib/**=anon
+                                
+                                /static/**=anon
+                                
+                                /login.jsp=anon
+                                
+                                /Verification.jsp=anon
+                                
+                                /logout.do=logout
+                                
+                                /index.do=user
+                                
+                                /**=authc
+                                
+                         </value>
+                   </property>
+          </bean> 
+
+
+        <!-- 配置安全管理器 -->
+        <bean id="securityManager" class="org.apache.shiro.web.mgt.DefaultWebSecurityManager">
+                           <!-- 获取自定义Realm -->                  
+                  <property name="realm" ref="MycustomRealm"/>
+                  
+                  <!-- 获取缓存管理器 -->
+                  <property name="cacheManager" ref="ehcachemanager"/>
+                  
+                  <!-- 获取session管理器 -->
+                  <property name="sessionManager" ref="SessionManager"/>
+                  
+                  <!-- 获取记住我的配置 -->
+                  <property name="rememberMeManager" ref="CookieRememberMeManager"/>
+        </bean>
+        
+        <!-- 配置自定义Realm  -->
+        <bean id="MycustomRealm" class="cn.zj.logistics.customrealm.MycustomRealm">
+                 <property name="credentialsMatcher" ref="credentialsmatcher"/>
+        </bean>
+        
+        
+        <!-- 配置密码加密 -->
+        
+        <bean id="credentialsmatcher" class="org.apache.shiro.authc.credential.HashedCredentialsMatcher">
+                   <!-- 配置加密算法 -->
+                   <property name="hashAlgorithmName" value="Md5"/>
+                   <!-- 配置散列次数 -->
+                   <property name="hashIterations" value="3"/>
+        </bean>
+        
+        <!-- 配置缓存管理器 -->
+        <bean id="ehcachemanager" class="org.apache.shiro.cache.ehcache.EhCacheManager">
+                         <!-- 获取缓存文件 -->
+                 <property name="cacheManagerConfigFile" value="classpath:shiro-ehacche.xml"/>
+        </bean>
+        
+        <bean id="SessionManager" class="org.apache.shiro.web.session.mgt.DefaultWebSessionManager">
+                        <!-- 设置session会话时间 -->
+                      <property name="globalSessionTimeout" value="#{1000 * 3600}"/>
+                         <!-- 删除效时的session -->
+                       <property name="deleteInvalidSessions" value="true"/>
+        </bean>
+        
+        
+        
+        <!-- 配置记住我 -->
+        <bean id="CookieRememberMeManager" class="org.apache.shiro.web.mgt.CookieRememberMeManager">
+                    <property name="cookie">                   
+                         <bean class="org.apache.shiro.web.servlet.SimpleCookie">
+                                  <constructor-arg value="rememberme"/>
+                                  <property name="maxAge" value="#{3600 * 24 *3}"/>                 
+                         </bean>                   
+                    </property>   
+        </bean>
+</beans>
