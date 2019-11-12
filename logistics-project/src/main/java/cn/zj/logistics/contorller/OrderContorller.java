@@ -223,12 +223,16 @@ public class OrderContorller{
 	   //修改客户信息
 	   @RequestMapping("/editorder")
 	   public String edit(Model model,Long orderId){
-           
-		   OrderDetailExample example=new OrderDetailExample();
-		   cn.zj.logistics.pojo.OrderDetailExample.Criteria Criteria = example.createCriteria();
-		   OrderDetailMapper.selectByExample(example);
-		  
+		
+		  OrderDetailExample example=new OrderDetailExample(); 
+		  cn.zj.logistics.pojo.OrderDetailExample.Criteria Criteria = example.createCriteria(); Criteria.andOrderIdEqualTo(orderId);		 
+		  List<OrderDetail> list = OrderDetailMapper.selectByExample(example); 
+		  for (OrderDetail orderDetail : list) {
+			 
+			System.err.println(orderDetail);			
+		}
 			   return "addOrder";
+		   
 	}
 	   
 	  //进行修改语句
